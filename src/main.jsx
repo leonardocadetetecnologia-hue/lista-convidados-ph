@@ -1,14 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { AtSign, Check, Download, Fingerprint, Lock, LogIn, Mail, MapPin, Phone, User, Zap } from "lucide-react";
+import { AtSign, Check, Download, Fingerprint, Mail, MapPin, Phone, User, Zap } from "lucide-react";
 import { supabase } from "./supabase";
 import "./styles.css";
 
 const EVENT_DATE = new Date("2026-05-22T22:00:00-03:00");
 const EVENT_ADDRESS = "R. Gabriela de Melo, 367 — Olhos D'Água, Belo Horizonte";
 const EVENT_VENUE = "TERRAZO 367";
-const ADMIN_USER = import.meta.env.VITE_ADMIN_USER || "admin";
-const ADMIN_PASS = import.meta.env.VITE_ADMIN_PASS || "admin@ph2026";
 
 const initialForm = { fullName: "", instagram: "", phone: "", email: "", cpf: "" };
 
@@ -210,29 +208,13 @@ function App() {
 }
 
 function AdminPanel() {
-  const [credentials, setCredentials] = useState({ user: "", pass: "" });
-  const [authenticated, setAuthenticated] = useState(false);
-  const [authError, setAuthError] = useState("");
   const [guests, setGuests] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  function handleLogin(e) {
-    e.preventDefault();
-    if (credentials.user === ADMIN_USER && credentials.pass === ADMIN_PASS) {
-      setAuthenticated(true);
-      setAuthError("");
-      fetchGuests();
-    } else {
-      setAuthError("Usuário ou senha incorretos.");
-    }
-  }
-
-  async function fetchGuests() {
-    setLoading(true);
-    const { data } = await supabase.from("guests").select("*").order("created_at", { ascending: false });
-    setGuests(data || []);
-    setLoading(false);
-  }
+  useEffect(() => {
+    supabase.from("guests").select("*").order("created_at", { ascending: false })
+      .then(({ data }) => { setGuests(data || []); setLoading(false); });
+  }, []);
 
   function exportTxt() {
     const header = "NOME | INSTAGRAM | TELEFONE | E-MAIL | CPF | CADASTRADO EM\n" + "─".repeat(80);
@@ -248,44 +230,6 @@ function AdminPanel() {
     a.download = `convidados-party-hard-${new Date().toISOString().slice(0, 10)}.txt`;
     a.click();
     URL.revokeObjectURL(url);
-  }
-
-  if (!authenticated) {
-    return (
-      <main className="page">
-        <div className="hero-bg" aria-hidden="true"></div>
-        <div className="hero-overlay" aria-hidden="true"></div>
-        <div className="modal-backdrop form-backdrop">
-          <div className="form-panel admin-login" role="dialog">
-            <div className="intro">
-              <p className="kicker">Acesso restrito</p>
-              <h2>Admin</h2>
-            </div>
-            <form className="guest-form" onSubmit={handleLogin} noValidate>
-              <label className="field">
-                <span className="field-label">Usuário</span>
-                <span className="field-control">
-                  <LogIn size={18} />
-                  <input type="text" autoComplete="username" value={credentials.user} onChange={(e) => setCredentials((c) => ({ ...c, user: e.target.value }))} placeholder="usuário" required />
-                </span>
-              </label>
-              <label className="field">
-                <span className="field-label">Senha</span>
-                <span className="field-control">
-                  <Lock size={18} />
-                  <input type="password" autoComplete="current-password" value={credentials.pass} onChange={(e) => setCredentials((c) => ({ ...c, pass: e.target.value }))} placeholder="••••••••" required />
-                </span>
-              </label>
-              {authError && <p className="status-message error">{authError}</p>}
-              <button className="submit-button is-positive" type="submit">
-                <span>Entrar</span>
-                <Zap size={18} fill="currentColor" />
-              </button>
-            </form>
-          </div>
-        </div>
-      </main>
-    );
   }
 
   return (
