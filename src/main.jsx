@@ -101,14 +101,52 @@ function App() {
   const [isFormOpen, setIsFormOpen] = useState(true);
   const [showCountdown, setShowCountdown] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [cpfStatus, setCpfStatus] = useState({ state: "idle", message: "" }); // idle | checking | found | clear
+  const [nameWordCount, setNameWordCount] = useState(0);
 
   const isSupabaseReady = useMemo(() => Boolean(supabase), []);
 
   function handleChange(event) {
     const { name, value } = event.target;
     const formatters = { fullName: normalizeFullName, phone: formatPhone, cpf: formatCpf, instagram: normalizeInstagram };
-    setForm((cur) => ({ ...cur, [name]: formatters[name] ? formatters[name](value) : value }));
+    const formatted = formatters[name] ? formatters[name](value) : value;
+    setForm((cur) => ({ ...cur, [name]: formatted }));
+
+    if (name === "fullName") {
+      setNameWordCount(formatted.trim().split(/\s+/).filter(Boolean).length);
+    }
+
+    if (name === "cpf") {
+      const digits = onlyDigits(value);
+      if (digits.length < 11) setCpfStatus({ state: "idle", message: "" });
+    }
   }
+
+  // Verifica CPF no banco assim que atingir 11 dígitos
+  useEffect(() => {
+    const digits = onlyDigits(form.cpf);
+    if (digits.length !== 11 || !isSupabaseReady) return;
+
+    setCpfStatus({ state: "checking", message: "" });
+    const timer = setTimeout(async () => {
+      const { data } = await supabase
+        .from("guests")
+        .select("full_name")
+        .eq("cpf", digits)
+        .maybeSingle();
+
+      if (data) {
+        setCpfStatus({
+          state: "found",
+          message: `${data.full_name} já está cadastrado(a) com este CPF.`,
+        });
+      } else {
+        setCpfStatus({ state: "clear", message: "" });
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [form.cpf, isSupabaseReady]);
 
   function handleCloseForm() {
     setIsFormOpen(false);
@@ -119,6 +157,11 @@ function App() {
     event.preventDefault();
     setShowSuccessModal(false);
     setStatus({ type: "idle", message: "" });
+
+    if (cpfStatus.state === "found") {
+      setStatus({ type: "error", message: cpfStatus.message });
+      return;
+    }
 
     const payload = {
       full_name: form.fullName.trim(),
@@ -138,8 +181,14 @@ function App() {
     const { error } = await supabase.from("guests").insert(payload);
 
     if (error) {
-      if (error.code === "23505") { setStatus({ type: "error", message: "Este nome já está cadastrado na lista." }); }
-      else { setStatus({ type: "error", message: `Erro: ${error.message || "Tente novamente."}` }); }
+      if (error.code === "23505") {
+        setStatus({
+          type: "error",
+          message: `Já existe um(a) "${payload.full_name}" na lista. Por favor, inclua também o terceiro nome para diferenciar.`,
+        });
+      } else {
+        setStatus({ type: "error", message: `Erro: ${error.message || "Tente novamente."}` });
+      }
       setIsSubmitting(false);
       return;
     }
@@ -148,6 +197,8 @@ function App() {
     setIsFormOpen(false);
     setShowSuccessModal(true);
     setForm(initialForm);
+    setCpfStatus({ state: "idle", message: "" });
+    setNameWordCount(0);
     setIsSubmitting(false);
   }
 
@@ -188,10 +239,29 @@ function App() {
                 }
                 required
               />
+              {/* aviso de terceiro nome — aparece só quando há conflito de nome idêntico já detectado */}
+              {nameWordCount >= 2 && status.type === "error" && status.message.includes("terceiro nome") && (
+                <p className="status-message error" style={{ marginTop: -6 }}>
+                  Ex: Paula <strong>Maria</strong> Henrique
+                </p>
+              )}
               <Field icon={<AtSign size={18} />} label="Instagram" name="instagram" value={form.instagram} onChange={handleChange} autoComplete="off" placeholder="@usuario" required />
               <Field icon={<Phone size={18} />} label="Telefone" name="phone" value={form.phone} onChange={handleChange} autoComplete="tel" inputMode="tel" placeholder="(11) 99999-9999" required />
               <Field icon={<Mail size={18} />} label="E-mail" name="email" value={form.email} onChange={handleChange} autoComplete="email" inputMode="email" type="email" placeholder="voce@email.com" required />
-              <Field icon={<Fingerprint size={18} />} label="CPF" name="cpf" value={form.cpf} onChange={handleChange} autoComplete="off" inputMode="numeric" placeholder="000.000.000-00" required />
+              <Field
+                icon={<Fingerprint size={18} />}
+                label="CPF"
+                name="cpf"
+                value={form.cpf}
+                onChange={handleChange}
+                autoComplete="off"
+                inputMode="numeric"
+                placeholder="000.000.000-00"
+                hint={cpfStatus.state === "found" ? cpfStatus.message : null}
+                hintType={cpfStatus.state === "found" ? "error" : cpfStatus.state === "clear" ? "success" : null}
+                checking={cpfStatus.state === "checking"}
+                required
+              />
 
               {status.message && (
                 <p className={`status-message ${status.type}`} role="status">
@@ -591,15 +661,19 @@ function AdminPanel() {
   );
 }
 
-function Field({ icon, label, hint, ...props }) {
+function Field({ icon, label, hint, hintType, checking, ...props }) {
+  const invalid = hint && hintType === "error";
+  const valid = hintType === "success";
   return (
-    <label className={`field${hint ? " field--invalid" : ""}`}>
+    <label className={`field${invalid ? " field--invalid" : ""}${valid ? " field--valid" : ""}`}>
       <span className="field-label">{label}</span>
       <span className="field-control">
         {icon}
         <input {...props} />
+        {checking && <span className="field-checking">…</span>}
+        {valid && !checking && <Check size={15} className="field-check-icon" />}
       </span>
-      {hint && <span className="field-hint">{hint}</span>}
+      {hint && <span className={`field-hint${hintType === "error" ? "" : " field-hint--ok"}`}>{hint}</span>}
     </label>
   );
 }
