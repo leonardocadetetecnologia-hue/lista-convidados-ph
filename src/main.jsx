@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { AtSign, Check, Download, Fingerprint, Mail, MapPin, Phone, Search, User, Zap } from "lucide-react";
+import { AtSign, Check, Download, Fingerprint, Mail, MapPin, Phone, RotateCcw, Search, Trash2, User, Zap } from "lucide-react";
 import { supabase } from "./supabase";
 import "./styles.css";
 
@@ -101,7 +101,7 @@ function App() {
   const [isFormOpen, setIsFormOpen] = useState(true);
   const [showCountdown, setShowCountdown] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [cpfStatus, setCpfStatus] = useState({ state: "idle", message: "" }); // idle | checking | found | clear
+  const [cpfStatus, setCpfStatus] = useState({ state: "idle", message: "" });
   const [nameWordCount, setNameWordCount] = useState(0);
 
   const isSupabaseReady = useMemo(() => Boolean(supabase), []);
@@ -122,7 +122,6 @@ function App() {
     }
   }
 
-  // Verifica CPF no banco assim que atingir 11 dígitos
   useEffect(() => {
     const digits = onlyDigits(form.cpf);
     if (digits.length !== 11 || !isSupabaseReady) return;
@@ -239,7 +238,6 @@ function App() {
                 }
                 required
               />
-              {/* aviso de terceiro nome — aparece só quando há conflito de nome idêntico já detectado */}
               {nameWordCount >= 2 && status.type === "error" && status.message.includes("terceiro nome") && (
                 <p className="status-message error" style={{ marginTop: -6 }}>
                   Ex: Paula <strong>Maria</strong> Henrique
@@ -300,6 +298,17 @@ function AdminPanel() {
   const [loading, setLoading] = useState(false);
   const [exportFiltered, setExportFiltered] = useState(false);
 
+  // Delete state
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+
+  // Lixeira state
+  const [deletedGuests, setDeletedGuests] = useState([]);
+  const [deletedBackstage, setDeletedBackstage] = useState([]);
+  const [deletedLoading, setDeletedLoading] = useState(false);
+  const [restoringId, setRestoringId] = useState(null);
+  const [restoreError, setRestoreError] = useState("");
+
   function handleLogin(e) {
     e.preventDefault();
     if (pass === ADMIN_PASS) {
@@ -351,11 +360,109 @@ function AdminPanel() {
     }
   }, [authenticated, activeTab]);
 
+  useEffect(() => {
+    if (authenticated && activeTab === "lixeira") {
+      fetchDeletedGuests();
+    }
+  }, [authenticated, activeTab]);
+
+  // Clear pending delete when switching tabs
+  useEffect(() => {
+    setPendingDeleteId(null);
+  }, [activeTab]);
+
   async function fetchBackstage() {
     setBackstageLoading(true);
     const { data } = await supabase.from("backstage_guests").select("*").order("created_at", { ascending: false });
     setBackstage(data || []);
     setBackstageLoading(false);
+  }
+
+  async function fetchDeletedGuests() {
+    setDeletedLoading(true);
+    const [{ data: dg }, { data: db }] = await Promise.all([
+      supabase.from("deleted_guests").select("*").order("deleted_at", { ascending: false }),
+      supabase.from("deleted_backstage_guests").select("*").order("deleted_at", { ascending: false }),
+    ]);
+    setDeletedGuests(dg || []);
+    setDeletedBackstage(db || []);
+    setDeletedLoading(false);
+  }
+
+  async function handleDeleteGuest(guest) {
+    setDeletingId(guest.id);
+    const { error: insertErr } = await supabase.from("deleted_guests").insert({
+      original_id: guest.id,
+      full_name: guest.full_name,
+      instagram: guest.instagram,
+      phone: guest.phone,
+      email: guest.email,
+      cpf: guest.cpf,
+      event_name: guest.event_name,
+      created_at: guest.created_at,
+    });
+    if (!insertErr) {
+      await supabase.from("guests").delete().eq("id", guest.id);
+      setGuests((prev) => prev.filter((g) => g.id !== guest.id));
+    }
+    setPendingDeleteId(null);
+    setDeletingId(null);
+  }
+
+  async function handleDeleteBackstage(guest) {
+    setDeletingId(guest.id);
+    const { error: insertErr } = await supabase.from("deleted_backstage_guests").insert({
+      original_id: guest.id,
+      full_name: guest.full_name,
+      phone: guest.phone,
+      created_at: guest.created_at,
+    });
+    if (!insertErr) {
+      await supabase.from("backstage_guests").delete().eq("id", guest.id);
+      setBackstage((prev) => prev.filter((g) => g.id !== guest.id));
+    }
+    setPendingDeleteId(null);
+    setDeletingId(null);
+  }
+
+  async function handleRestoreGuest(deletedGuest) {
+    setRestoringId(deletedGuest.id);
+    setRestoreError("");
+    const { error } = await supabase.from("guests").insert({
+      full_name: deletedGuest.full_name,
+      instagram: deletedGuest.instagram,
+      phone: deletedGuest.phone,
+      email: deletedGuest.email,
+      cpf: deletedGuest.cpf,
+      event_name: deletedGuest.event_name,
+      created_at: deletedGuest.created_at,
+    });
+    if (!error) {
+      await supabase.from("deleted_guests").delete().eq("id", deletedGuest.id);
+      setDeletedGuests((prev) => prev.filter((g) => g.id !== deletedGuest.id));
+      fetchGuests();
+    } else {
+      setRestoreError(`Não foi possível restaurar "${deletedGuest.full_name}": já existe na lista.`);
+    }
+    setRestoringId(null);
+  }
+
+  async function handleRestoreBackstage(deletedGuest) {
+    setRestoringId(deletedGuest.id);
+    setRestoreError("");
+    const { error } = await supabase.from("backstage_guests").insert({
+      full_name: deletedGuest.full_name,
+      phone: deletedGuest.phone,
+      created_at: deletedGuest.created_at,
+    });
+    if (!error) {
+      await supabase.from("deleted_backstage_guests").delete().eq("id", deletedGuest.id);
+      setDeletedBackstage((prev) => prev.filter((g) => g.id !== deletedGuest.id));
+      fetchBackstage();
+    } else {
+      setRestoreError(`Não foi possível restaurar "${deletedGuest.full_name}".`);
+    }
+    setRestoringId(null);
   }
 
   async function handleBackstageSubmit(e) {
@@ -458,6 +565,8 @@ function AdminPanel() {
     downloadTxt(`nomes-backstage-${suffix}.txt`, ["LISTA BACKSTAGE — PARTY HARD", "─".repeat(40), ...lines, "", `Total: ${backstageSource.length}`].join("\n"));
   }
 
+  const totalDeleted = deletedGuests.length + deletedBackstage.length;
+
   return (
     <main className="admin-page">
       <header className="admin-header">
@@ -493,6 +602,10 @@ function AdminPanel() {
         <button className={`admin-tab ${activeTab === "backstage" ? "is-active" : ""}`} onClick={() => setActiveTab("backstage")}>
           Backstage
           <span className="admin-tab-count">{backstage.length}</span>
+        </button>
+        <button className={`admin-tab ${activeTab === "lixeira" ? "is-active" : ""}`} onClick={() => setActiveTab("lixeira")}>
+          Lixeira
+          {totalDeleted > 0 && <span className="admin-tab-count is-deleted">{totalDeleted}</span>}
         </button>
       </nav>
 
@@ -554,14 +667,15 @@ function AdminPanel() {
                     <th>E-mail</th>
                     <th>CPF</th>
                     <th>Cadastrado em</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredGuests.length === 0 ? (
-                    <tr><td colSpan={7} className="admin-empty">Nenhum resultado encontrado.</td></tr>
+                    <tr><td colSpan={8} className="admin-empty">Nenhum resultado encontrado.</td></tr>
                   ) : (
                     filteredGuests.map((g, i) => (
-                      <tr key={g.id}>
+                      <tr key={g.id} className={pendingDeleteId === g.id ? "row-pending-delete" : ""}>
                         <td>{i + 1}</td>
                         <td>{g.full_name}</td>
                         <td>{g.instagram}</td>
@@ -569,6 +683,27 @@ function AdminPanel() {
                         <td>{g.email}</td>
                         <td>{g.cpf}</td>
                         <td>{new Date(g.created_at).toLocaleString("pt-BR")}</td>
+                        <td className="delete-action-cell">
+                          {pendingDeleteId === g.id ? (
+                            <div className="delete-confirm-inline">
+                              <label className="delete-confirm-check">
+                                <input
+                                  type="checkbox"
+                                  onChange={(e) => { if (e.target.checked) handleDeleteGuest(g); }}
+                                  disabled={deletingId === g.id}
+                                />
+                                <span>{deletingId === g.id ? "Excluindo..." : "Tenho certeza"}</span>
+                              </label>
+                              <button className="delete-cancel-btn" onClick={() => setPendingDeleteId(null)} disabled={deletingId === g.id}>
+                                Cancelar
+                              </button>
+                            </div>
+                          ) : (
+                            <button className="delete-row-btn" onClick={() => setPendingDeleteId(g.id)} title="Excluir convidado">
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     ))
                   )}
@@ -654,18 +789,40 @@ function AdminPanel() {
                     <th>Nome</th>
                     <th>Telefone</th>
                     <th>Adicionado em</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredBackstage.length === 0 ? (
-                    <tr><td colSpan={4} className="admin-empty">Nenhum resultado encontrado.</td></tr>
+                    <tr><td colSpan={5} className="admin-empty">Nenhum resultado encontrado.</td></tr>
                   ) : (
                     filteredBackstage.map((g, i) => (
-                      <tr key={g.id}>
+                      <tr key={g.id} className={pendingDeleteId === g.id ? "row-pending-delete" : ""}>
                         <td>{i + 1}</td>
                         <td>{g.full_name}</td>
                         <td>{g.phone}</td>
                         <td>{new Date(g.created_at).toLocaleString("pt-BR")}</td>
+                        <td className="delete-action-cell">
+                          {pendingDeleteId === g.id ? (
+                            <div className="delete-confirm-inline">
+                              <label className="delete-confirm-check">
+                                <input
+                                  type="checkbox"
+                                  onChange={(e) => { if (e.target.checked) handleDeleteBackstage(g); }}
+                                  disabled={deletingId === g.id}
+                                />
+                                <span>{deletingId === g.id ? "Excluindo..." : "Tenho certeza"}</span>
+                              </label>
+                              <button className="delete-cancel-btn" onClick={() => setPendingDeleteId(null)} disabled={deletingId === g.id}>
+                                Cancelar
+                              </button>
+                            </div>
+                          ) : (
+                            <button className="delete-row-btn" onClick={() => setPendingDeleteId(g.id)} title="Excluir">
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     ))
                   )}
@@ -674,6 +831,121 @@ function AdminPanel() {
             </div>
           )}
         </>
+      )}
+
+      {activeTab === "lixeira" && (
+        <div className="lixeira-panel">
+          <div className="lixeira-header">
+            <p className="kicker">Backup de exclusões</p>
+            <h3 className="lixeira-title">Lixeira</h3>
+            <p className="lixeira-desc">Nomes excluídos podem ser restaurados para a lista original.</p>
+          </div>
+
+          {restoreError && (
+            <div className="lixeira-error">
+              {restoreError}
+              <button onClick={() => setRestoreError("")}>✕</button>
+            </div>
+          )}
+
+          {deletedLoading ? (
+            <p className="admin-loading">Carregando...</p>
+          ) : (
+            <>
+              <div className="lixeira-section">
+                <div className="lixeira-section-title">
+                  <span>Convidados Excluídos</span>
+                  <span className="lixeira-section-count">{deletedGuests.length}</span>
+                </div>
+                {deletedGuests.length === 0 ? (
+                  <p className="lixeira-empty">Nenhum convidado excluído.</p>
+                ) : (
+                  <div className="admin-table-wrapper">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Nome</th>
+                          <th>Instagram</th>
+                          <th>CPF</th>
+                          <th>Excluído em</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {deletedGuests.map((g, i) => (
+                          <tr key={g.id}>
+                            <td>{i + 1}</td>
+                            <td>{g.full_name}</td>
+                            <td>{g.instagram}</td>
+                            <td>{g.cpf}</td>
+                            <td>{new Date(g.deleted_at).toLocaleString("pt-BR")}</td>
+                            <td>
+                              <button
+                                className="restore-btn"
+                                onClick={() => handleRestoreGuest(g)}
+                                disabled={restoringId === g.id}
+                                title="Restaurar para a lista"
+                              >
+                                <RotateCcw size={13} />
+                                <span>{restoringId === g.id ? "Restaurando..." : "Restaurar"}</span>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              <div className="lixeira-section">
+                <div className="lixeira-section-title">
+                  <span>Backstage Excluídos</span>
+                  <span className="lixeira-section-count">{deletedBackstage.length}</span>
+                </div>
+                {deletedBackstage.length === 0 ? (
+                  <p className="lixeira-empty">Nenhum backstage excluído.</p>
+                ) : (
+                  <div className="admin-table-wrapper">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Nome</th>
+                          <th>Telefone</th>
+                          <th>Excluído em</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {deletedBackstage.map((g, i) => (
+                          <tr key={g.id}>
+                            <td>{i + 1}</td>
+                            <td>{g.full_name}</td>
+                            <td>{g.phone}</td>
+                            <td>{new Date(g.deleted_at).toLocaleString("pt-BR")}</td>
+                            <td>
+                              <button
+                                className="restore-btn"
+                                onClick={() => handleRestoreBackstage(g)}
+                                disabled={restoringId === g.id}
+                                title="Restaurar para o backstage"
+                              >
+                                <RotateCcw size={13} />
+                                <span>{restoringId === g.id ? "Restaurando..." : "Restaurar"}</span>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       )}
     </main>
   );
