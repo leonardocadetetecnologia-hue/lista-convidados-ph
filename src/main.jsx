@@ -173,7 +173,21 @@ function App() {
             </div>
 
             <form className="guest-form" onSubmit={handleSubmit} noValidate>
-              <Field icon={<User size={18} />} label="Nome e sobrenome" name="fullName" value={form.fullName} onChange={handleChange} autoComplete="name" placeholder="Ex: Paula Henrique" required />
+              <Field
+                icon={<User size={18} />}
+                label="Nome e sobrenome"
+                name="fullName"
+                value={form.fullName}
+                onChange={handleChange}
+                autoComplete="name"
+                placeholder="Ex: Paula Henrique"
+                hint={
+                  form.fullName.length > 0 && !hasValidFullName(form.fullName)
+                    ? "Digite nome e sobrenome"
+                    : null
+                }
+                required
+              />
               <Field icon={<AtSign size={18} />} label="Instagram" name="instagram" value={form.instagram} onChange={handleChange} autoComplete="off" placeholder="@usuario" required />
               <Field icon={<Phone size={18} />} label="Telefone" name="phone" value={form.phone} onChange={handleChange} autoComplete="tel" inputMode="tel" placeholder="(11) 99999-9999" required />
               <Field icon={<Mail size={18} />} label="E-mail" name="email" value={form.email} onChange={handleChange} autoComplete="email" inputMode="email" type="email" placeholder="voce@email.com" required />
@@ -501,14 +515,15 @@ function AdminPanel() {
   );
 }
 
-function Field({ icon, label, ...props }) {
+function Field({ icon, label, hint, ...props }) {
   return (
-    <label className="field">
+    <label className={`field${hint ? " field--invalid" : ""}`}>
       <span className="field-label">{label}</span>
       <span className="field-control">
         {icon}
         <input {...props} />
       </span>
+      {hint && <span className="field-hint">{hint}</span>}
     </label>
   );
 }
