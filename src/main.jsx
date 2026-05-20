@@ -322,6 +322,24 @@ function AdminPanel() {
     downloadTxt(`convidados-${new Date().toISOString().slice(0, 10)}.txt`, [header, ...lines, "", `Total: ${guests.length} convidado(s)`].join("\n"));
   }
 
+  function exportGuestsCsv() {
+    const header = "Nome,Instagram,Telefone,E-mail,CPF,Cadastrado em";
+    const lines = guests.map((g) => {
+      const date = new Date(g.created_at).toLocaleString("pt-BR");
+      return [g.full_name, g.instagram, g.phone, g.email, g.cpf, date]
+        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+        .join(",");
+    });
+    const content = [header, ...lines].join("\n");
+    const blob = new Blob(["﻿" + content], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `convidados-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   function exportGuestsNames() {
     const lines = guests.map((g) => g.full_name);
     downloadTxt(`nomes-convidados-${new Date().toISOString().slice(0, 10)}.txt`, ["LISTA DE NOMES — PARTY HARD", "─".repeat(40), ...lines, "", `Total: ${guests.length}`].join("\n"));
@@ -363,7 +381,11 @@ function AdminPanel() {
               </button>
               <button className="admin-export-btn is-full" onClick={exportGuestsFull} disabled={loading || guests.length === 0}>
                 <Download size={15} />
-                <span>Exportar Completo</span>
+                <span>Completo TXT</span>
+              </button>
+              <button className="admin-export-btn is-csv" onClick={exportGuestsCsv} disabled={loading || guests.length === 0}>
+                <Download size={15} />
+                <span>Completo CSV</span>
               </button>
             </div>
           </div>

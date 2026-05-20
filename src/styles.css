@@ -540,6 +540,16 @@ h2 {
   box-shadow: 0 0 20px rgba(207,207,207,0.1);
 }
 
+.admin-export-btn.is-csv {
+  border-color: rgba(80,180,255,0.6);
+  color: #50b4ff;
+  background: rgba(80,180,255,0.08);
+}
+.admin-export-btn.is-csv:hover:not(:disabled) {
+  background: rgba(80,180,255,0.18);
+  box-shadow: 0 0 20px rgba(80,180,255,0.18);
+}
+
 .admin-export-btn.is-add {
   border-color: rgba(37,228,107,0.6);
   color: var(--positive);
