@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { AtSign, Check, Download, Fingerprint, Mail, MapPin, Phone, User, Zap } from "lucide-react";
+import { AtSign, Check, Download, Fingerprint, Mail, MapPin, Phone, Search, User, Zap } from "lucide-react";
 import { supabase } from "./supabase";
 import "./styles.css";
 
@@ -254,6 +254,26 @@ function AdminPanel() {
   const [backstageStatus, setBackstageStatus] = useState({ type: "idle", message: "" });
   const [backstageSubmitting, setBackstageSubmitting] = useState(false);
 
+  const [guestSearch, setGuestSearch] = useState("");
+  const [guestDateFrom, setGuestDateFrom] = useState("");
+  const [guestDateTo, setGuestDateTo] = useState("");
+  const [backstageSearch, setBackstageSearch] = useState("");
+  const [backstageDateFrom, setBackstageDateFrom] = useState("");
+  const [backstageDateTo, setBackstageDateTo] = useState("");
+
+  function applyFilters(list, search, dateFrom, dateTo) {
+    return list.filter((g) => {
+      const nameMatch = !search || g.full_name.toLowerCase().includes(search.toLowerCase());
+      const created = new Date(g.created_at);
+      const fromMatch = !dateFrom || created >= new Date(dateFrom + "T00:00:00");
+      const toMatch = !dateTo || created <= new Date(dateTo + "T23:59:59");
+      return nameMatch && fromMatch && toMatch;
+    });
+  }
+
+  const filteredGuests = applyFilters(guests, guestSearch, guestDateFrom, guestDateTo);
+  const filteredBackstage = applyFilters(backstage, backstageSearch, backstageDateFrom, backstageDateTo);
+
   useEffect(() => {
     if (authenticated && activeTab === "backstage" && backstage.length === 0) {
       fetchBackstage();
@@ -387,20 +407,40 @@ function AdminPanel() {
       {activeTab === "guests" && (
         <>
           <div className="admin-toolbar">
-            <span className="admin-count">{loading ? "Carregando..." : `${guests.length} convidado(s)`}</span>
+            <span className="admin-count">
+              {loading ? "Carregando..." : `${filteredGuests.length} de ${guests.length} convidado(s)`}
+            </span>
             <div className="admin-toolbar-actions">
               <button className="admin-export-btn" onClick={exportGuestsNames} disabled={loading || guests.length === 0}>
-                <Download size={15} />
-                <span>Exportar Nomes</span>
+                <Download size={15} /><span>Exportar Nomes</span>
               </button>
               <button className="admin-export-btn is-full" onClick={exportGuestsFull} disabled={loading || guests.length === 0}>
-                <Download size={15} />
-                <span>Completo TXT</span>
+                <Download size={15} /><span>Completo TXT</span>
               </button>
               <button className="admin-export-btn is-csv" onClick={exportGuestsCsv} disabled={loading || guests.length === 0}>
-                <Download size={15} />
-                <span>Completo CSV</span>
+                <Download size={15} /><span>Completo CSV</span>
               </button>
+            </div>
+          </div>
+
+          <div className="admin-filters">
+            <div className="admin-search">
+              <Search size={15} />
+              <input
+                type="text"
+                placeholder="Pesquisar por nome..."
+                value={guestSearch}
+                onChange={(e) => setGuestSearch(e.target.value)}
+              />
+              {guestSearch && <button className="filter-clear" onClick={() => setGuestSearch("")}>✕</button>}
+            </div>
+            <div className="admin-date-range">
+              <input type="date" value={guestDateFrom} onChange={(e) => setGuestDateFrom(e.target.value)} title="De" />
+              <span className="date-sep">até</span>
+              <input type="date" value={guestDateTo} onChange={(e) => setGuestDateTo(e.target.value)} title="Até" />
+              {(guestDateFrom || guestDateTo) && (
+                <button className="filter-clear" onClick={() => { setGuestDateFrom(""); setGuestDateTo(""); }}>✕</button>
+              )}
             </div>
           </div>
 
@@ -421,10 +461,10 @@ function AdminPanel() {
                   </tr>
                 </thead>
                 <tbody>
-                  {guests.length === 0 ? (
-                    <tr><td colSpan={7} className="admin-empty">Nenhum convidado cadastrado.</td></tr>
+                  {filteredGuests.length === 0 ? (
+                    <tr><td colSpan={7} className="admin-empty">Nenhum resultado encontrado.</td></tr>
                   ) : (
-                    guests.map((g, i) => (
+                    filteredGuests.map((g, i) => (
                       <tr key={g.id}>
                         <td>{i + 1}</td>
                         <td>{g.full_name}</td>
@@ -446,11 +486,33 @@ function AdminPanel() {
       {activeTab === "backstage" && (
         <>
           <div className="admin-toolbar">
-            <span className="admin-count">{backstageLoading ? "Carregando..." : `${backstage.length} pessoa(s)`}</span>
+            <span className="admin-count">
+              {backstageLoading ? "Carregando..." : `${filteredBackstage.length} de ${backstage.length} pessoa(s)`}
+            </span>
             <button className="admin-export-btn" onClick={exportBackstageNames} disabled={backstageLoading || backstage.length === 0}>
-              <Download size={15} />
-              <span>Exportar Nomes Backstage</span>
+              <Download size={15} /><span>Exportar Nomes Backstage</span>
             </button>
+          </div>
+
+          <div className="admin-filters">
+            <div className="admin-search">
+              <Search size={15} />
+              <input
+                type="text"
+                placeholder="Pesquisar por nome..."
+                value={backstageSearch}
+                onChange={(e) => setBackstageSearch(e.target.value)}
+              />
+              {backstageSearch && <button className="filter-clear" onClick={() => setBackstageSearch("")}>✕</button>}
+            </div>
+            <div className="admin-date-range">
+              <input type="date" value={backstageDateFrom} onChange={(e) => setBackstageDateFrom(e.target.value)} title="De" />
+              <span className="date-sep">até</span>
+              <input type="date" value={backstageDateTo} onChange={(e) => setBackstageDateTo(e.target.value)} title="Até" />
+              {(backstageDateFrom || backstageDateTo) && (
+                <button className="filter-clear" onClick={() => { setBackstageDateFrom(""); setBackstageDateTo(""); }}>✕</button>
+              )}
+            </div>
           </div>
 
           <div className="backstage-add">
@@ -493,10 +555,10 @@ function AdminPanel() {
                   </tr>
                 </thead>
                 <tbody>
-                  {backstage.length === 0 ? (
-                    <tr><td colSpan={4} className="admin-empty">Nenhum nome no backstage.</td></tr>
+                  {filteredBackstage.length === 0 ? (
+                    <tr><td colSpan={4} className="admin-empty">Nenhum resultado encontrado.</td></tr>
                   ) : (
-                    backstage.map((g, i) => (
+                    filteredBackstage.map((g, i) => (
                       <tr key={g.id}>
                         <td>{i + 1}</td>
                         <td>{g.full_name}</td>

@@ -450,6 +450,91 @@ h2 {
 }
 .admin-export-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+.admin-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 32px 16px;
+  border-bottom: 1px solid rgba(207,207,207,0.08);
+}
+
+.admin-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 220px;
+  flex: 1;
+  max-width: 360px;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid rgba(207,207,207,0.22);
+  background: rgba(0,0,0,0.3);
+  color: var(--silver);
+  transition: border-color 180ms;
+}
+.admin-search:focus-within {
+  border-color: rgba(255,255,255,0.5);
+}
+.admin-search svg { flex-shrink: 0; color: var(--metal); }
+.admin-search input {
+  flex: 1; min-width: 0;
+  border: none; outline: none;
+  background: transparent;
+  color: var(--white);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.admin-search input::placeholder { color: rgba(207,207,207,0.3); }
+
+.admin-date-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-date-range input[type="date"] {
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid rgba(207,207,207,0.22);
+  background: rgba(0,0,0,0.3);
+  color: var(--white);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 180ms;
+  color-scheme: dark;
+}
+.admin-date-range input[type="date"]:focus {
+  border-color: rgba(255,255,255,0.5);
+}
+
+.date-sep {
+  font-family: "Orbitron", Arial, sans-serif;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--metal);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.filter-clear {
+  display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px;
+  border: 1px solid rgba(207,207,207,0.22);
+  background: transparent;
+  color: var(--metal);
+  font-size: 0.7rem;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: color 150ms, background 150ms;
+}
+.filter-clear:hover { color: var(--white); background: rgba(255,59,59,0.2); border-color: rgba(255,59,59,0.4); }
+
 .admin-loading {
   text-align: center; color: var(--metal);
   font-family: "Orbitron", Arial, sans-serif;
@@ -680,4 +765,7 @@ h2 {
   .admin-table th, .admin-table td { padding: 10px 10px; }
   .backstage-add { padding: 20px 16px; }
   .backstage-form { grid-template-columns: 1fr; }
+  .admin-filters { padding: 12px 16px 14px; }
+  .admin-search { max-width: 100%; }
+  .admin-date-range input[type="date"] { font-size: 0.78rem; padding: 0 8px; }
 }
