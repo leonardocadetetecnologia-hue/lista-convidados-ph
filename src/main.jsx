@@ -465,6 +465,24 @@ function AdminPanel() {
           <p className="kicker">Party Hard</p>
           <h2 className="admin-title">Painel Admin</h2>
         </div>
+        <div className="admin-header-counters">
+          <div className="admin-header-counter">
+            <span className="admin-header-counter-value">{loading ? "—" : guests.length}</span>
+            <span className="admin-header-counter-label">Convidados</span>
+          </div>
+          <div className="admin-header-counter-divider" />
+          <div className="admin-header-counter">
+            <span className="admin-header-counter-value">{backstageLoading ? "—" : backstage.length}</span>
+            <span className="admin-header-counter-label">Backstage</span>
+          </div>
+          <div className="admin-header-counter-divider" />
+          <div className="admin-header-counter">
+            <span className="admin-header-counter-value">
+              {loading || backstageLoading ? "—" : guests.length + backstage.length}
+            </span>
+            <span className="admin-header-counter-label">Total</span>
+          </div>
+        </div>
       </header>
 
       <nav className="admin-tabs">

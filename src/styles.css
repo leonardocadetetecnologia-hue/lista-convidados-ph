@@ -445,6 +445,49 @@ h2 {
   backdrop-filter: blur(10px);
 }
 
+.admin-header-counters {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 12px 20px;
+  border: 1px solid rgba(207,207,207,0.14);
+  background: rgba(255,255,255,0.03);
+  border-radius: 4px;
+}
+
+.admin-header-counter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 56px;
+  text-align: center;
+}
+
+.admin-header-counter-value {
+  font-family: "Orbitron", Arial, sans-serif;
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  font-weight: 900;
+  color: var(--white);
+  line-height: 1;
+  text-shadow: 0 0 18px rgba(255,255,255,0.2);
+}
+
+.admin-header-counter-label {
+  font-family: "Orbitron", Arial, sans-serif;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--metal);
+}
+
+.admin-header-counter-divider {
+  width: 1px;
+  height: 32px;
+  background: rgba(207,207,207,0.14);
+}
+
 .admin-title {
   font-family: "Anton", Impact, sans-serif;
   font-size: clamp(1.4rem, 4vw, 2rem);
@@ -816,7 +859,10 @@ h2 {
   .countdown-sep  { font-size: 1.8rem; margin-bottom: 16px; }
 
   /* admin */
-  .admin-header { padding: 18px 16px; }
+  .admin-header { padding: 18px 16px; flex-wrap: wrap; }
+  .admin-header-counters { width: 100%; justify-content: center; }
+  .admin-header-counter { min-width: 48px; }
+  .admin-header-counter-value { font-size: 1.3rem; }
   .admin-tabs { padding: 0 16px; }
   .admin-tab { padding: 12px 14px; font-size: 0.65rem; }
   .admin-toolbar { padding: 14px 16px; }
