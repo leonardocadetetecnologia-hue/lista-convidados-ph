@@ -228,6 +228,7 @@ function AdminPanel() {
   const [authError, setAuthError] = useState("");
   const [guests, setGuests] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [exportFiltered, setExportFiltered] = useState(false);
 
   function handleLogin(e) {
     e.preventDefault();
@@ -347,41 +348,44 @@ function AdminPanel() {
     URL.revokeObjectURL(url);
   }
 
+  const guestSource = exportFiltered ? filteredGuests : guests;
+  const backstageSource = exportFiltered ? filteredBackstage : backstage;
+  const suffix = new Date().toISOString().slice(0, 10);
+
   function exportGuestsFull() {
     const header = "NOME | INSTAGRAM | TELEFONE | E-MAIL | CPF | CADASTRADO EM\n" + "─".repeat(80);
-    const lines = guests.map((g) => {
+    const lines = guestSource.map((g) => {
       const date = new Date(g.created_at).toLocaleString("pt-BR");
       return `${g.full_name} | ${g.instagram} | ${g.phone} | ${g.email} | ${g.cpf} | ${date}`;
     });
-    downloadTxt(`convidados-${new Date().toISOString().slice(0, 10)}.txt`, [header, ...lines, "", `Total: ${guests.length} convidado(s)`].join("\n"));
+    downloadTxt(`convidados-${suffix}.txt`, [header, ...lines, "", `Total: ${guestSource.length} convidado(s)`].join("\n"));
   }
 
   function exportGuestsCsv() {
     const header = "Nome,Instagram,Telefone,E-mail,CPF,Cadastrado em";
-    const lines = guests.map((g) => {
+    const lines = guestSource.map((g) => {
       const date = new Date(g.created_at).toLocaleString("pt-BR");
       return [g.full_name, g.instagram, g.phone, g.email, g.cpf, date]
         .map((v) => `"${String(v).replace(/"/g, '""')}"`)
         .join(",");
     });
-    const content = [header, ...lines].join("\n");
-    const blob = new Blob(["﻿" + content], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob(["﻿" + [header, ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `convidados-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `convidados-${suffix}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
 
   function exportGuestsNames() {
-    const lines = guests.map((g) => g.full_name);
-    downloadTxt(`nomes-convidados-${new Date().toISOString().slice(0, 10)}.txt`, ["LISTA DE NOMES — PARTY HARD", "─".repeat(40), ...lines, "", `Total: ${guests.length}`].join("\n"));
+    const lines = guestSource.map((g) => g.full_name);
+    downloadTxt(`nomes-convidados-${suffix}.txt`, ["LISTA DE NOMES — PARTY HARD", "─".repeat(40), ...lines, "", `Total: ${guestSource.length}`].join("\n"));
   }
 
   function exportBackstageNames() {
-    const lines = backstage.map((g) => g.full_name);
-    downloadTxt(`nomes-backstage-${new Date().toISOString().slice(0, 10)}.txt`, ["LISTA BACKSTAGE — PARTY HARD", "─".repeat(40), ...lines, "", `Total: ${backstage.length}`].join("\n"));
+    const lines = backstageSource.map((g) => g.full_name);
+    downloadTxt(`nomes-backstage-${suffix}.txt`, ["LISTA BACKSTAGE — PARTY HARD", "─".repeat(40), ...lines, "", `Total: ${backstageSource.length}`].join("\n"));
   }
 
   return (
@@ -411,13 +415,17 @@ function AdminPanel() {
               {loading ? "Carregando..." : `${filteredGuests.length} de ${guests.length} convidado(s)`}
             </span>
             <div className="admin-toolbar-actions">
-              <button className="admin-export-btn" onClick={exportGuestsNames} disabled={loading || guests.length === 0}>
+              <label className="export-filter-check">
+                <input type="checkbox" checked={exportFiltered} onChange={(e) => setExportFiltered(e.target.checked)} />
+                <span>Exportar pelo filtro</span>
+              </label>
+              <button className="admin-export-btn" onClick={exportGuestsNames} disabled={loading || guestSource.length === 0}>
                 <Download size={15} /><span>Exportar Nomes</span>
               </button>
-              <button className="admin-export-btn is-full" onClick={exportGuestsFull} disabled={loading || guests.length === 0}>
+              <button className="admin-export-btn is-full" onClick={exportGuestsFull} disabled={loading || guestSource.length === 0}>
                 <Download size={15} /><span>Completo TXT</span>
               </button>
-              <button className="admin-export-btn is-csv" onClick={exportGuestsCsv} disabled={loading || guests.length === 0}>
+              <button className="admin-export-btn is-csv" onClick={exportGuestsCsv} disabled={loading || guestSource.length === 0}>
                 <Download size={15} /><span>Completo CSV</span>
               </button>
             </div>
@@ -489,9 +497,15 @@ function AdminPanel() {
             <span className="admin-count">
               {backstageLoading ? "Carregando..." : `${filteredBackstage.length} de ${backstage.length} pessoa(s)`}
             </span>
-            <button className="admin-export-btn" onClick={exportBackstageNames} disabled={backstageLoading || backstage.length === 0}>
-              <Download size={15} /><span>Exportar Nomes Backstage</span>
-            </button>
+            <div className="admin-toolbar-actions">
+              <label className="export-filter-check">
+                <input type="checkbox" checked={exportFiltered} onChange={(e) => setExportFiltered(e.target.checked)} />
+                <span>Exportar pelo filtro</span>
+              </label>
+              <button className="admin-export-btn" onClick={exportBackstageNames} disabled={backstageLoading || backstageSource.length === 0}>
+                <Download size={15} /><span>Exportar Nomes Backstage</span>
+              </button>
+            </div>
           </div>
 
           <div className="admin-filters">
