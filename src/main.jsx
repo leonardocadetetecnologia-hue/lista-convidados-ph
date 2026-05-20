@@ -323,12 +323,12 @@ function AdminPanel() {
   }
 
   function exportGuestsNames() {
-    const lines = guests.map((g, i) => `${i + 1}. ${g.full_name}`);
+    const lines = guests.map((g) => g.full_name);
     downloadTxt(`nomes-convidados-${new Date().toISOString().slice(0, 10)}.txt`, ["LISTA DE NOMES — PARTY HARD", "─".repeat(40), ...lines, "", `Total: ${guests.length}`].join("\n"));
   }
 
   function exportBackstageNames() {
-    const lines = backstage.map((g, i) => `${i + 1}. ${g.full_name}`);
+    const lines = backstage.map((g) => g.full_name);
     downloadTxt(`nomes-backstage-${new Date().toISOString().slice(0, 10)}.txt`, ["LISTA BACKSTAGE — PARTY HARD", "─".repeat(40), ...lines, "", `Total: ${backstage.length}`].join("\n"));
   }
 
