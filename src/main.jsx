@@ -233,6 +233,45 @@ function AdminPanel() {
     setLoading(false);
   }
 
+  const [activeTab, setActiveTab] = useState("guests");
+  const [backstage, setBackstage] = useState([]);
+  const [backstageLoading, setBackstageLoading] = useState(false);
+  const [backstageForm, setBackstageForm] = useState({ fullName: "", phone: "" });
+  const [backstageStatus, setBackstageStatus] = useState({ type: "idle", message: "" });
+  const [backstageSubmitting, setBackstageSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (authenticated && activeTab === "backstage" && backstage.length === 0) {
+      fetchBackstage();
+    }
+  }, [authenticated, activeTab]);
+
+  async function fetchBackstage() {
+    setBackstageLoading(true);
+    const { data } = await supabase.from("backstage_guests").select("*").order("created_at", { ascending: false });
+    setBackstage(data || []);
+    setBackstageLoading(false);
+  }
+
+  async function handleBackstageSubmit(e) {
+    e.preventDefault();
+    setBackstageStatus({ type: "idle", message: "" });
+    const fullName = backstageForm.fullName.trim();
+    const phone = onlyDigits(backstageForm.phone);
+    if (!hasValidFullName(fullName)) { setBackstageStatus({ type: "error", message: "Informe nome e sobrenome." }); return; }
+    if (phone.length < 10) { setBackstageStatus({ type: "error", message: "Telefone inválido." }); return; }
+    setBackstageSubmitting(true);
+    const { error } = await supabase.from("backstage_guests").insert({ full_name: fullName, phone });
+    if (error) {
+      setBackstageStatus({ type: "error", message: "Erro ao salvar. Tente novamente." });
+    } else {
+      setBackstageForm({ fullName: "", phone: "" });
+      setBackstageStatus({ type: "success", message: "Adicionado com sucesso." });
+      fetchBackstage();
+    }
+    setBackstageSubmitting(false);
+  }
+
   if (!authenticated) {
     return (
       <main className="page">
@@ -264,20 +303,33 @@ function AdminPanel() {
     );
   }
 
-  function exportTxt() {
+  function downloadTxt(filename, content) {
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportGuestsFull() {
     const header = "NOME | INSTAGRAM | TELEFONE | E-MAIL | CPF | CADASTRADO EM\n" + "─".repeat(80);
     const lines = guests.map((g) => {
       const date = new Date(g.created_at).toLocaleString("pt-BR");
       return `${g.full_name} | ${g.instagram} | ${g.phone} | ${g.email} | ${g.cpf} | ${date}`;
     });
-    const content = [header, ...lines, "", `Total: ${guests.length} convidado(s)`].join("\n");
-    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `convidados-party-hard-${new Date().toISOString().slice(0, 10)}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadTxt(`convidados-${new Date().toISOString().slice(0, 10)}.txt`, [header, ...lines, "", `Total: ${guests.length} convidado(s)`].join("\n"));
+  }
+
+  function exportGuestsNames() {
+    const lines = guests.map((g, i) => `${i + 1}. ${g.full_name}`);
+    downloadTxt(`nomes-convidados-${new Date().toISOString().slice(0, 10)}.txt`, ["LISTA DE NOMES — PARTY HARD", "─".repeat(40), ...lines, "", `Total: ${guests.length}`].join("\n"));
+  }
+
+  function exportBackstageNames() {
+    const lines = backstage.map((g, i) => `${i + 1}. ${g.full_name}`);
+    downloadTxt(`nomes-backstage-${new Date().toISOString().slice(0, 10)}.txt`, ["LISTA BACKSTAGE — PARTY HARD", "─".repeat(40), ...lines, "", `Total: ${backstage.length}`].join("\n"));
   }
 
   return (
@@ -285,52 +337,143 @@ function AdminPanel() {
       <header className="admin-header">
         <div>
           <p className="kicker">Party Hard</p>
-          <h2 className="admin-title">Lista de Convidados</h2>
-        </div>
-        <div className="admin-header-actions">
-          <span className="admin-count">{loading ? "..." : `${guests.length} convidado(s)`}</span>
-          <button className="admin-export-btn" onClick={exportTxt} disabled={loading || guests.length === 0}>
-            <Download size={16} />
-            <span>Exportar TXT</span>
-          </button>
+          <h2 className="admin-title">Painel Admin</h2>
         </div>
       </header>
 
-      {loading ? (
-        <p className="admin-loading">Carregando...</p>
-      ) : (
-        <div className="admin-table-wrapper">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Nome</th>
-                <th>Instagram</th>
-                <th>Telefone</th>
-                <th>E-mail</th>
-                <th>CPF</th>
-                <th>Cadastrado em</th>
-              </tr>
-            </thead>
-            <tbody>
-              {guests.length === 0 ? (
-                <tr><td colSpan={7} className="admin-empty">Nenhum convidado cadastrado.</td></tr>
-              ) : (
-                guests.map((g, i) => (
-                  <tr key={g.id}>
-                    <td>{i + 1}</td>
-                    <td>{g.full_name}</td>
-                    <td>{g.instagram}</td>
-                    <td>{g.phone}</td>
-                    <td>{g.email}</td>
-                    <td>{g.cpf}</td>
-                    <td>{new Date(g.created_at).toLocaleString("pt-BR")}</td>
+      <nav className="admin-tabs">
+        <button className={`admin-tab ${activeTab === "guests" ? "is-active" : ""}`} onClick={() => setActiveTab("guests")}>
+          Lista de Convidados
+          <span className="admin-tab-count">{guests.length}</span>
+        </button>
+        <button className={`admin-tab ${activeTab === "backstage" ? "is-active" : ""}`} onClick={() => setActiveTab("backstage")}>
+          Backstage
+          <span className="admin-tab-count">{backstage.length}</span>
+        </button>
+      </nav>
+
+      {activeTab === "guests" && (
+        <>
+          <div className="admin-toolbar">
+            <span className="admin-count">{loading ? "Carregando..." : `${guests.length} convidado(s)`}</span>
+            <div className="admin-toolbar-actions">
+              <button className="admin-export-btn" onClick={exportGuestsNames} disabled={loading || guests.length === 0}>
+                <Download size={15} />
+                <span>Exportar Nomes</span>
+              </button>
+              <button className="admin-export-btn is-full" onClick={exportGuestsFull} disabled={loading || guests.length === 0}>
+                <Download size={15} />
+                <span>Exportar Completo</span>
+              </button>
+            </div>
+          </div>
+
+          {loading ? (
+            <p className="admin-loading">Carregando...</p>
+          ) : (
+            <div className="admin-table-wrapper">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Nome</th>
+                    <th>Instagram</th>
+                    <th>Telefone</th>
+                    <th>E-mail</th>
+                    <th>CPF</th>
+                    <th>Cadastrado em</th>
                   </tr>
-                ))
+                </thead>
+                <tbody>
+                  {guests.length === 0 ? (
+                    <tr><td colSpan={7} className="admin-empty">Nenhum convidado cadastrado.</td></tr>
+                  ) : (
+                    guests.map((g, i) => (
+                      <tr key={g.id}>
+                        <td>{i + 1}</td>
+                        <td>{g.full_name}</td>
+                        <td>{g.instagram}</td>
+                        <td>{g.phone}</td>
+                        <td>{g.email}</td>
+                        <td>{g.cpf}</td>
+                        <td>{new Date(g.created_at).toLocaleString("pt-BR")}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {activeTab === "backstage" && (
+        <>
+          <div className="admin-toolbar">
+            <span className="admin-count">{backstageLoading ? "Carregando..." : `${backstage.length} pessoa(s)`}</span>
+            <button className="admin-export-btn" onClick={exportBackstageNames} disabled={backstageLoading || backstage.length === 0}>
+              <Download size={15} />
+              <span>Exportar Nomes Backstage</span>
+            </button>
+          </div>
+
+          <div className="backstage-add">
+            <p className="kicker" style={{ marginBottom: 12 }}>Adicionar à lista</p>
+            <form className="backstage-form" onSubmit={handleBackstageSubmit} noValidate>
+              <label className="field">
+                <span className="field-label">Nome completo</span>
+                <span className="field-control">
+                  <User size={18} />
+                  <input type="text" value={backstageForm.fullName} onChange={(e) => setBackstageForm((f) => ({ ...f, fullName: normalizeFullName(e.target.value) }))} placeholder="Ex: Paula Henrique" required />
+                </span>
+              </label>
+              <label className="field">
+                <span className="field-label">Telefone</span>
+                <span className="field-control">
+                  <Phone size={18} />
+                  <input type="tel" inputMode="tel" value={backstageForm.phone} onChange={(e) => setBackstageForm((f) => ({ ...f, phone: formatPhone(e.target.value) }))} placeholder="(11) 99999-9999" required />
+                </span>
+              </label>
+              {backstageStatus.message && (
+                <p className={`status-message ${backstageStatus.type}`}>{backstageStatus.message}</p>
               )}
-            </tbody>
-          </table>
-        </div>
+              <button className="admin-export-btn is-add" type="submit" disabled={backstageSubmitting}>
+                <span>{backstageSubmitting ? "Salvando..." : "Adicionar"}</span>
+              </button>
+            </form>
+          </div>
+
+          {backstageLoading ? (
+            <p className="admin-loading">Carregando...</p>
+          ) : (
+            <div className="admin-table-wrapper">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Nome</th>
+                    <th>Telefone</th>
+                    <th>Adicionado em</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {backstage.length === 0 ? (
+                    <tr><td colSpan={4} className="admin-empty">Nenhum nome no backstage.</td></tr>
+                  ) : (
+                    backstage.map((g, i) => (
+                      <tr key={g.id}>
+                        <td>{i + 1}</td>
+                        <td>{g.full_name}</td>
+                        <td>{g.phone}</td>
+                        <td>{new Date(g.created_at).toLocaleString("pt-BR")}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
     </main>
   );
