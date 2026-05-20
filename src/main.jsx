@@ -7,6 +7,7 @@ import "./styles.css";
 const EVENT_DATE = new Date("2026-05-22T22:00:00-03:00");
 const EVENT_ADDRESS = "R. Gabriela de Melo, 367 — Olhos D'Água, Belo Horizonte";
 const EVENT_VENUE = "TERRAZO 367";
+const ADMIN_PASS = import.meta.env.VITE_ADMIN_PASS || "admin@ph2026";
 
 const initialForm = { fullName: "", instagram: "", phone: "", email: "", cpf: "" };
 
@@ -208,13 +209,60 @@ function App() {
 }
 
 function AdminPanel() {
+  const [pass, setPass] = useState("");
+  const [authenticated, setAuthenticated] = useState(false);
+  const [authError, setAuthError] = useState("");
   const [guests, setGuests] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    supabase.from("guests").select("*").order("created_at", { ascending: false })
-      .then(({ data }) => { setGuests(data || []); setLoading(false); });
-  }, []);
+  function handleLogin(e) {
+    e.preventDefault();
+    if (pass === ADMIN_PASS) {
+      setAuthenticated(true);
+      setAuthError("");
+      fetchGuests();
+    } else {
+      setAuthError("Senha incorreta.");
+    }
+  }
+
+  async function fetchGuests() {
+    setLoading(true);
+    const { data } = await supabase.from("guests").select("*").order("created_at", { ascending: false });
+    setGuests(data || []);
+    setLoading(false);
+  }
+
+  if (!authenticated) {
+    return (
+      <main className="page">
+        <div className="hero-bg" aria-hidden="true"></div>
+        <div className="hero-overlay" aria-hidden="true"></div>
+        <div className="modal-backdrop form-backdrop">
+          <div className="form-panel" role="dialog">
+            <div className="intro">
+              <p className="kicker">Área restrita</p>
+              <h2>Admin</h2>
+            </div>
+            <form className="guest-form" onSubmit={handleLogin} noValidate>
+              <label className="field">
+                <span className="field-label">Senha</span>
+                <span className="field-control">
+                  <Zap size={18} />
+                  <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} placeholder="••••••••" autoFocus required />
+                </span>
+              </label>
+              {authError && <p className="status-message error">{authError}</p>}
+              <button className="submit-button is-positive" type="submit">
+                <span>Entrar</span>
+                <Zap size={18} fill="currentColor" />
+              </button>
+            </form>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   function exportTxt() {
     const header = "NOME | INSTAGRAM | TELEFONE | E-MAIL | CPF | CADASTRADO EM\n" + "─".repeat(80);
@@ -300,5 +348,5 @@ function Field({ icon, label, ...props }) {
   );
 }
 
-const isAdmin = window.location.hash === "#admin";
+const isAdmin = window.location.pathname === "/admin";
 createRoot(document.getElementById("root")).render(isAdmin ? <AdminPanel /> : <App />);
