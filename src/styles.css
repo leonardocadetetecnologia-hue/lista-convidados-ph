@@ -771,18 +771,29 @@ h2 {
   background: rgba(37,228,107,0.18);
 }
 
+.guest-add,
 .backstage-add {
   padding: 24px 32px;
   border-bottom: 1px solid rgba(207,207,207,0.08);
 }
 
+.admin-guest-form,
 .backstage-form {
   display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: 12px;
+}
+
+.admin-guest-form {
+  grid-template-columns: repeat(5, minmax(150px, 1fr));
+}
+
+.backstage-form {
+  grid-template-columns: 1fr 1fr;
   max-width: 640px;
 }
 
+.admin-guest-form .status-message,
+.admin-guest-form .admin-export-btn.is-add,
 .backstage-form .status-message,
 .backstage-form .admin-export-btn.is-add {
   grid-column: 1 / -1;
@@ -1050,7 +1061,9 @@ h2 {
   .admin-toolbar { padding: 14px 16px; }
   .admin-table-wrapper { padding: 16px 12px 0; }
   .admin-table th, .admin-table td { padding: 10px 10px; }
+  .guest-add,
   .backstage-add { padding: 20px 16px; }
+  .admin-guest-form,
   .backstage-form { grid-template-columns: 1fr; }
   .admin-filters { padding: 12px 16px 14px; }
   .admin-search { max-width: 100%; }

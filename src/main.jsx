@@ -330,6 +330,11 @@ function AdminPanel() {
   const [activeTab, setActiveTab] = useState("guests");
   const [backstage, setBackstage] = useState([]);
   const [backstageLoading, setBackstageLoading] = useState(false);
+  const [adminGuestForm, setAdminGuestForm] = useState(initialForm);
+  const [adminGuestStatus, setAdminGuestStatus] = useState({ type: "idle", message: "" });
+  const [adminGuestSubmitting, setAdminGuestSubmitting] = useState(false);
+  const [adminGuestCpfStatus, setAdminGuestCpfStatus] = useState({ state: "idle", message: "" });
+  const [adminGuestNameWordCount, setAdminGuestNameWordCount] = useState(0);
   const [backstageForm, setBackstageForm] = useState({ fullName: "", phone: "" });
   const [backstageStatus, setBackstageStatus] = useState({ type: "idle", message: "" });
   const [backstageSubmitting, setBackstageSubmitting] = useState(false);
@@ -365,6 +370,31 @@ function AdminPanel() {
       fetchDeletedGuests();
     }
   }, [authenticated, activeTab]);
+
+  useEffect(() => {
+    const digits = onlyDigits(adminGuestForm.cpf);
+    if (digits.length !== 11 || !supabase) return;
+
+    setAdminGuestCpfStatus({ state: "checking", message: "" });
+    const timer = setTimeout(async () => {
+      const { data } = await supabase
+        .from("guests")
+        .select("full_name")
+        .eq("cpf", digits)
+        .maybeSingle();
+
+      if (data) {
+        setAdminGuestCpfStatus({
+          state: "found",
+          message: `${data.full_name} jÃ¡ estÃ¡ cadastrado(a) com este CPF.`,
+        });
+      } else {
+        setAdminGuestCpfStatus({ state: "clear", message: "" });
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [adminGuestForm.cpf]);
 
   // Clear pending delete when switching tabs
   useEffect(() => {
@@ -463,6 +493,69 @@ function AdminPanel() {
       setRestoreError(`Não foi possível restaurar "${deletedGuest.full_name}".`);
     }
     setRestoringId(null);
+  }
+
+  function handleAdminGuestChange(event) {
+    const { name, value } = event.target;
+    const formatters = { fullName: normalizeFullName, phone: formatPhone, cpf: formatCpf, instagram: normalizeInstagram };
+    const formatted = formatters[name] ? formatters[name](value) : value;
+    setAdminGuestForm((cur) => ({ ...cur, [name]: formatted }));
+
+    if (name === "fullName") {
+      setAdminGuestNameWordCount(formatted.trim().split(/\s+/).filter(Boolean).length);
+    }
+
+    if (name === "cpf") {
+      const digits = onlyDigits(value);
+      if (digits.length < 11) setAdminGuestCpfStatus({ state: "idle", message: "" });
+    }
+  }
+
+  async function handleAdminGuestSubmit(e) {
+    e.preventDefault();
+    setAdminGuestStatus({ type: "idle", message: "" });
+
+    if (adminGuestCpfStatus.state === "found") {
+      setAdminGuestStatus({ type: "error", message: adminGuestCpfStatus.message });
+      return;
+    }
+
+    const payload = {
+      full_name: adminGuestForm.fullName.trim(),
+      instagram: adminGuestForm.instagram.trim(),
+      phone: onlyDigits(adminGuestForm.phone),
+      email: adminGuestForm.email.trim().toLowerCase(),
+      cpf: onlyDigits(adminGuestForm.cpf),
+    };
+
+    if (!hasValidFullName(payload.full_name)) { setAdminGuestStatus({ type: "error", message: "Informe nome e sobrenome." }); return; }
+    if (!hasValidEmail(payload.email)) { setAdminGuestStatus({ type: "error", message: "Informe um e-mail vÃ¡lido." }); return; }
+    if (payload.phone.length < 10) { setAdminGuestStatus({ type: "error", message: "Informe um telefone vÃ¡lido com DDD." }); return; }
+    if (payload.cpf.length !== 11) { setAdminGuestStatus({ type: "error", message: "Informe um CPF com 11 dÃ­gitos." }); return; }
+    if (!supabase) { setAdminGuestStatus({ type: "error", message: "Supabase nÃ£o configurado." }); return; }
+
+    setAdminGuestSubmitting(true);
+    const { error } = await supabase.from("guests").insert(payload);
+
+    if (error) {
+      if (error.code === "23505") {
+        setAdminGuestStatus({
+          type: "error",
+          message: `JÃ¡ existe um(a) "${payload.full_name}" na lista. Por favor, inclua tambÃ©m o terceiro nome para diferenciar.`,
+        });
+      } else {
+        setAdminGuestStatus({ type: "error", message: `Erro: ${error.message || "Tente novamente."}` });
+      }
+      setAdminGuestSubmitting(false);
+      return;
+    }
+
+    setAdminGuestForm(initialForm);
+    setAdminGuestCpfStatus({ state: "idle", message: "" });
+    setAdminGuestNameWordCount(0);
+    setAdminGuestStatus({ type: "success", message: "Convidado adicionado com sucesso." });
+    fetchGuests();
+    setAdminGuestSubmitting(false);
   }
 
   async function handleBackstageSubmit(e) {
@@ -651,6 +744,58 @@ function AdminPanel() {
                 <button className="filter-clear" onClick={() => { setGuestDateFrom(""); setGuestDateTo(""); }}>✕</button>
               )}
             </div>
+          </div>
+
+          <div className="guest-add">
+            <p className="kicker" style={{ marginBottom: 12 }}>Adicionar convidado</p>
+            <form className="admin-guest-form" onSubmit={handleAdminGuestSubmit} noValidate>
+              <Field
+                icon={<User size={18} />}
+                label="Nome e sobrenome"
+                name="fullName"
+                value={adminGuestForm.fullName}
+                onChange={handleAdminGuestChange}
+                autoComplete="name"
+                placeholder="Ex: Paula Henrique"
+                hint={
+                  adminGuestForm.fullName.length > 0 && !hasValidFullName(adminGuestForm.fullName)
+                    ? "Digite nome e sobrenome"
+                    : null
+                }
+                required
+              />
+              <Field icon={<AtSign size={18} />} label="Instagram" name="instagram" value={adminGuestForm.instagram} onChange={handleAdminGuestChange} autoComplete="off" placeholder="@usuario" required />
+              <Field icon={<Phone size={18} />} label="Telefone" name="phone" value={adminGuestForm.phone} onChange={handleAdminGuestChange} autoComplete="tel" inputMode="tel" placeholder="(11) 99999-9999" required />
+              <Field icon={<Mail size={18} />} label="E-mail" name="email" value={adminGuestForm.email} onChange={handleAdminGuestChange} autoComplete="email" inputMode="email" type="email" placeholder="voce@email.com" required />
+              <Field
+                icon={<Fingerprint size={18} />}
+                label="CPF"
+                name="cpf"
+                value={adminGuestForm.cpf}
+                onChange={handleAdminGuestChange}
+                autoComplete="off"
+                inputMode="numeric"
+                placeholder="000.000.000-00"
+                hint={adminGuestCpfStatus.state === "found" ? adminGuestCpfStatus.message : null}
+                hintType={adminGuestCpfStatus.state === "found" ? "error" : adminGuestCpfStatus.state === "clear" ? "success" : null}
+                checking={adminGuestCpfStatus.state === "checking"}
+                required
+              />
+              {adminGuestNameWordCount >= 2 && adminGuestStatus.type === "error" && adminGuestStatus.message.includes("terceiro nome") && (
+                <p className="status-message error">
+                  Ex: Paula <strong>Maria</strong> Henrique
+                </p>
+              )}
+              {adminGuestStatus.message && (
+                <p className={`status-message ${adminGuestStatus.type}`} role="status">
+                  {adminGuestStatus.type === "success" && <Check size={16} />}
+                  {adminGuestStatus.message}
+                </p>
+              )}
+              <button className="admin-export-btn is-add" type="submit" disabled={adminGuestSubmitting}>
+                <span>{adminGuestSubmitting ? "Salvando..." : "Adicionar convidado"}</span>
+              </button>
+            </form>
           </div>
 
           {loading ? (
