@@ -47,6 +47,26 @@ create index if not exists guests_event_name_idx on public.guests (event_name);
 create unique index if not exists guests_event_full_name_unique_idx
 on public.guests (event_name, lower(regexp_replace(btrim(full_name), '\s+', ' ', 'g')));
 
+create table if not exists public.app_settings (
+  key text primary key,
+  value jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.app_settings enable row level security;
+
+drop policy if exists "Allow anon select app_settings" on public.app_settings;
+drop policy if exists "Allow anon insert app_settings" on public.app_settings;
+drop policy if exists "Allow anon update app_settings" on public.app_settings;
+
+create policy "Allow anon select app_settings" on public.app_settings for select to anon using (true);
+create policy "Allow anon insert app_settings" on public.app_settings for insert to anon with check (true);
+create policy "Allow anon update app_settings" on public.app_settings for update to anon using (true) with check (true);
+
+insert into public.app_settings (key, value)
+values ('form_closed', 'false'::jsonb)
+on conflict (key) do nothing;
+
 drop policy if exists "Allow anon select guests" on public.guests;
 create policy "Allow anon select guests"
 on public.guests for select to anon using (true);

@@ -158,6 +158,19 @@ button, input { font: inherit; }
 
 .intro { margin-bottom: 20px; padding-right: 38px; }
 
+.form-closed-panel {
+  text-align: center;
+}
+
+.form-closed-panel h2 {
+  margin: 0;
+  font-family: "Anton", Impact, sans-serif;
+  font-size: clamp(2rem, 8vw, 4rem);
+  font-weight: 400;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
 .kicker {
   margin: 0 0 8px;
   color: var(--metal);
@@ -499,6 +512,26 @@ h2 {
   display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
 }
 
+.admin-form-toggle {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.admin-inline-status {
+  margin: 0;
+  font-family: "Orbitron", Arial, sans-serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: right;
+}
+
+.admin-inline-status.success { color: var(--positive); }
+.admin-inline-status.error { color: var(--negative); }
+
 .admin-count {
   font-family: "Orbitron", Arial, sans-serif;
   font-size: 0.78rem; font-weight: 700;
@@ -758,6 +791,16 @@ h2 {
   box-shadow: 0 0 20px rgba(80,180,255,0.18);
 }
 
+.admin-export-btn.is-danger {
+  border-color: rgba(255,59,59,0.62);
+  color: #ff6b6b;
+  background: rgba(255,59,59,0.08);
+}
+.admin-export-btn.is-danger:hover:not(:disabled) {
+  background: rgba(255,59,59,0.18);
+  box-shadow: 0 0 20px rgba(255,59,59,0.18);
+}
+
 .admin-export-btn.is-add {
   border-color: rgba(37,228,107,0.6);
   color: var(--positive);
@@ -784,7 +827,7 @@ h2 {
 }
 
 .admin-guest-form {
-  grid-template-columns: repeat(5, minmax(150px, 1fr));
+  grid-template-columns: minmax(220px, 520px);
 }
 
 .backstage-form {

@@ -8,6 +8,8 @@ const EVENT_DATE = new Date("2026-05-22T22:00:00-03:00");
 const EVENT_ADDRESS = "R. Gabriela de Melo, 367 — Olhos D'Água, Belo Horizonte";
 const EVENT_VENUE = "TERRAZO 367";
 const ADMIN_PASS = import.meta.env.VITE_ADMIN_PASS || "admin@ph2026";
+const FORM_CLOSED_SETTING_KEY = "form_closed";
+const FORM_CLOSED_MESSAGE = "Formulário encerrado. Até a próxima.";
 
 const initialForm = { fullName: "", instagram: "", phone: "", email: "", cpf: "" };
 
@@ -32,6 +34,44 @@ function formatCpf(v) {
 function normalizeInstagram(v) {
   const c = v.replace(/\s/g, "").replace(/^@+/, "");
   return c ? `@${c}` : "";
+}
+
+function makeAdminGuestPayload(fullName) {
+  const digits = `${Date.now()}${Math.floor(Math.random() * 1000)}`.slice(-11).padStart(11, "0");
+  return {
+    full_name: fullName.trim(),
+    instagram: "",
+    phone: "0000000000",
+    email: `admin-${digits}@partyhard.local`,
+    cpf: digits,
+  };
+}
+
+async function fetchFormClosedSetting() {
+  if (!supabase) return false;
+
+  const { data, error } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", FORM_CLOSED_SETTING_KEY)
+    .maybeSingle();
+
+  if (error) return false;
+  return data?.value === true || data?.value === "true";
+}
+
+async function saveFormClosedSetting(isClosed) {
+  if (!supabase) throw new Error("Supabase não configurado.");
+
+  const { error } = await supabase
+    .from("app_settings")
+    .upsert({
+      key: FORM_CLOSED_SETTING_KEY,
+      value: isClosed,
+      updated_at: new Date().toISOString(),
+    });
+
+  if (error) throw error;
 }
 
 function useCountdown(target) {
@@ -99,12 +139,28 @@ function App() {
   const [status, setStatus] = useState({ type: "idle", message: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(true);
+  const [isCheckingFormStatus, setIsCheckingFormStatus] = useState(true);
+  const [isPublicFormClosed, setIsPublicFormClosed] = useState(false);
   const [showCountdown, setShowCountdown] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [cpfStatus, setCpfStatus] = useState({ state: "idle", message: "" });
   const [nameWordCount, setNameWordCount] = useState(0);
 
   const isSupabaseReady = useMemo(() => Boolean(supabase), []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetchFormClosedSetting()
+      .then((isClosed) => {
+        if (isMounted) setIsPublicFormClosed(isClosed);
+      })
+      .finally(() => {
+        if (isMounted) setIsCheckingFormStatus(false);
+      });
+
+    return () => { isMounted = false; };
+  }, []);
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -212,7 +268,15 @@ function App() {
         </div>
       )}
 
-      {isFormOpen && (
+      {!isCheckingFormStatus && isPublicFormClosed && (
+        <div className="modal-backdrop form-backdrop" role="presentation">
+          <div className="form-panel form-closed-panel" role="dialog" aria-modal="true">
+            <h2>{FORM_CLOSED_MESSAGE}</h2>
+          </div>
+        </div>
+      )}
+
+      {!isCheckingFormStatus && !isPublicFormClosed && isFormOpen && (
         <div className="modal-backdrop form-backdrop" role="presentation">
           <div className="form-panel" role="dialog" aria-modal="true" aria-labelledby="form-title">
             <button className="close-button" type="button" aria-label="Fechar formulario" onClick={handleCloseForm}>✕</button>
@@ -315,6 +379,7 @@ function AdminPanel() {
       setAuthenticated(true);
       setAuthError("");
       fetchGuests();
+      fetchFormClosed();
     } else {
       setAuthError("Senha incorreta.");
     }
@@ -327,6 +392,11 @@ function AdminPanel() {
     setLoading(false);
   }
 
+  async function fetchFormClosed() {
+    const isClosed = await fetchFormClosedSetting();
+    setFormClosed(isClosed);
+  }
+
   const [activeTab, setActiveTab] = useState("guests");
   const [backstage, setBackstage] = useState([]);
   const [backstageLoading, setBackstageLoading] = useState(false);
@@ -335,6 +405,9 @@ function AdminPanel() {
   const [adminGuestSubmitting, setAdminGuestSubmitting] = useState(false);
   const [adminGuestCpfStatus, setAdminGuestCpfStatus] = useState({ state: "idle", message: "" });
   const [adminGuestNameWordCount, setAdminGuestNameWordCount] = useState(0);
+  const [formClosed, setFormClosed] = useState(false);
+  const [formClosedUpdating, setFormClosedUpdating] = useState(false);
+  const [formClosedStatus, setFormClosedStatus] = useState({ type: "idle", message: "" });
   const [backstageForm, setBackstageForm] = useState({ fullName: "", phone: "" });
   const [backstageStatus, setBackstageStatus] = useState({ type: "idle", message: "" });
   const [backstageSubmitting, setBackstageSubmitting] = useState(false);
@@ -515,23 +588,9 @@ function AdminPanel() {
     e.preventDefault();
     setAdminGuestStatus({ type: "idle", message: "" });
 
-    if (adminGuestCpfStatus.state === "found") {
-      setAdminGuestStatus({ type: "error", message: adminGuestCpfStatus.message });
-      return;
-    }
-
-    const payload = {
-      full_name: adminGuestForm.fullName.trim(),
-      instagram: adminGuestForm.instagram.trim(),
-      phone: onlyDigits(adminGuestForm.phone),
-      email: adminGuestForm.email.trim().toLowerCase(),
-      cpf: onlyDigits(adminGuestForm.cpf),
-    };
+    const payload = makeAdminGuestPayload(adminGuestForm.fullName);
 
     if (!hasValidFullName(payload.full_name)) { setAdminGuestStatus({ type: "error", message: "Informe nome e sobrenome." }); return; }
-    if (!hasValidEmail(payload.email)) { setAdminGuestStatus({ type: "error", message: "Informe um e-mail vÃ¡lido." }); return; }
-    if (payload.phone.length < 10) { setAdminGuestStatus({ type: "error", message: "Informe um telefone vÃ¡lido com DDD." }); return; }
-    if (payload.cpf.length !== 11) { setAdminGuestStatus({ type: "error", message: "Informe um CPF com 11 dÃ­gitos." }); return; }
     if (!supabase) { setAdminGuestStatus({ type: "error", message: "Supabase nÃ£o configurado." }); return; }
 
     setAdminGuestSubmitting(true);
@@ -556,6 +615,28 @@ function AdminPanel() {
     setAdminGuestStatus({ type: "success", message: "Convidado adicionado com sucesso." });
     fetchGuests();
     setAdminGuestSubmitting(false);
+  }
+
+  async function handleToggleFormClosed() {
+    const nextValue = !formClosed;
+    setFormClosedUpdating(true);
+    setFormClosedStatus({ type: "idle", message: "" });
+
+    try {
+      await saveFormClosedSetting(nextValue);
+      setFormClosed(nextValue);
+      setFormClosedStatus({
+        type: "success",
+        message: nextValue ? "Formulário encerrado." : "Formulário reaberto.",
+      });
+    } catch (error) {
+      setFormClosedStatus({
+        type: "error",
+        message: `Não foi possível atualizar o formulário: ${error.message || "tente novamente."}`,
+      });
+    } finally {
+      setFormClosedUpdating(false);
+    }
   }
 
   async function handleBackstageSubmit(e) {
@@ -685,6 +766,20 @@ function AdminPanel() {
             <span className="admin-header-counter-label">Total</span>
           </div>
         </div>
+        <div className="admin-form-toggle">
+          <button
+            className={`admin-export-btn ${formClosed ? "is-full" : "is-danger"}`}
+            type="button"
+            onClick={handleToggleFormClosed}
+            disabled={formClosedUpdating}
+          >
+            <Zap size={15} />
+            <span>{formClosed ? "Reabrir formulário" : "Encerrar formulário"}</span>
+          </button>
+          {formClosedStatus.message && (
+            <p className={`admin-inline-status ${formClosedStatus.type}`}>{formClosedStatus.message}</p>
+          )}
+        </div>
       </header>
 
       <nav className="admin-tabs">
@@ -762,23 +857,6 @@ function AdminPanel() {
                     ? "Digite nome e sobrenome"
                     : null
                 }
-                required
-              />
-              <Field icon={<AtSign size={18} />} label="Instagram" name="instagram" value={adminGuestForm.instagram} onChange={handleAdminGuestChange} autoComplete="off" placeholder="@usuario" required />
-              <Field icon={<Phone size={18} />} label="Telefone" name="phone" value={adminGuestForm.phone} onChange={handleAdminGuestChange} autoComplete="tel" inputMode="tel" placeholder="(11) 99999-9999" required />
-              <Field icon={<Mail size={18} />} label="E-mail" name="email" value={adminGuestForm.email} onChange={handleAdminGuestChange} autoComplete="email" inputMode="email" type="email" placeholder="voce@email.com" required />
-              <Field
-                icon={<Fingerprint size={18} />}
-                label="CPF"
-                name="cpf"
-                value={adminGuestForm.cpf}
-                onChange={handleAdminGuestChange}
-                autoComplete="off"
-                inputMode="numeric"
-                placeholder="000.000.000-00"
-                hint={adminGuestCpfStatus.state === "found" ? adminGuestCpfStatus.message : null}
-                hintType={adminGuestCpfStatus.state === "found" ? "error" : adminGuestCpfStatus.state === "clear" ? "success" : null}
-                checking={adminGuestCpfStatus.state === "checking"}
                 required
               />
               {adminGuestNameWordCount >= 2 && adminGuestStatus.type === "error" && adminGuestStatus.message.includes("terceiro nome") && (
