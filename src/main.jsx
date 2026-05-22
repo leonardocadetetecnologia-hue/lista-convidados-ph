@@ -8,7 +8,9 @@ const EVENT_DATE = new Date("2026-05-22T22:00:00-03:00");
 const EVENT_ADDRESS = "R. Gabriela de Melo, 367 — Olhos D'Água, Belo Horizonte";
 const EVENT_VENUE = "TERRAZO 367";
 const ADMIN_PASS = import.meta.env.VITE_ADMIN_PASS || "admin@ph2026";
-const FORM_CLOSED_SETTING_KEY = "form_closed";
+const EVENT_NAME = "PH";
+const FORM_CLOSED_SETTING_EVENT = "FORM_STATUS";
+const FORM_CLOSED_SETTING_NAME = "FORM_CLOSED";
 const FORM_CLOSED_MESSAGE = "Formulário encerrado. Até a próxima.";
 
 const initialForm = { fullName: "", instagram: "", phone: "", email: "", cpf: "" };
@@ -51,27 +53,45 @@ async function fetchFormClosedSetting() {
   if (!supabase) return false;
 
   const { data, error } = await supabase
-    .from("app_settings")
-    .select("value")
-    .eq("key", FORM_CLOSED_SETTING_KEY)
+    .from("guests")
+    .select("id")
+    .eq("event_name", FORM_CLOSED_SETTING_EVENT)
+    .eq("full_name", FORM_CLOSED_SETTING_NAME)
     .maybeSingle();
 
   if (error) return false;
-  return data?.value === true || data?.value === "true";
+  return Boolean(data);
 }
 
 async function saveFormClosedSetting(isClosed) {
   if (!supabase) throw new Error("Supabase não configurado.");
 
-  const { error } = await supabase
-    .from("app_settings")
-    .upsert({
-      key: FORM_CLOSED_SETTING_KEY,
-      value: isClosed,
-      updated_at: new Date().toISOString(),
+  const { data } = await supabase
+    .from("guests")
+    .select("id")
+    .eq("event_name", FORM_CLOSED_SETTING_EVENT)
+    .eq("full_name", FORM_CLOSED_SETTING_NAME)
+    .maybeSingle();
+
+  if (isClosed && !data) {
+    const digits = `${Date.now()}${Math.floor(Math.random() * 1000)}`.slice(-11).padStart(11, "0");
+    const { error } = await supabase.from("guests").insert({
+      full_name: FORM_CLOSED_SETTING_NAME,
+      instagram: "",
+      phone: "0000000000",
+      email: `form-status-${digits}@partyhard.local`,
+      cpf: digits,
+      event_name: FORM_CLOSED_SETTING_EVENT,
     });
 
-  if (error) throw error;
+    if (error) throw error;
+    return;
+  }
+
+  if (!isClosed && data) {
+    const { error } = await supabase.from("guests").delete().eq("id", data.id);
+    if (error) throw error;
+  }
 }
 
 function useCountdown(target) {
@@ -387,7 +407,11 @@ function AdminPanel() {
 
   async function fetchGuests() {
     setLoading(true);
-    const { data } = await supabase.from("guests").select("*").order("created_at", { ascending: false });
+    const { data } = await supabase
+      .from("guests")
+      .select("*")
+      .eq("event_name", EVENT_NAME)
+      .order("created_at", { ascending: false });
     setGuests(data || []);
     setLoading(false);
   }
