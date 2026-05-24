@@ -1,7 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(vercel deploy *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "mcp__c8065b29-b94d-4d3f-aa23-bf142c858664__list_teams",
+      "mcp__c8065b29-b94d-4d3f-aa23-bf142c858664__list_projects",
+      "mcp__c8065b29-b94d-4d3f-aa23-bf142c858664__list_deployments"
     ]
   }
 }
